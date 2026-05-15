@@ -32,21 +32,33 @@ export default function ChessGame({ playerColor, botColor, onNewGame }) {
       await new Promise((r) => setTimeout(r, 350 + Math.random() * 200));
 
       try {
-        const res = await fetch('/api/bot-move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fen: currentFen,
-            moves: currentMoves,
-            botColor,
-          }),
-        });
-        if (!res.ok) throw new Error('Bot failed');
-        const { san } = await res.json();
+        let lastStatus = 0;
+        let data = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0)
+            await new Promise((r) => setTimeout(r, 400 * Math.pow(2, attempt - 1)));
+          const res = await fetch('/api/bot-move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fen: currentFen,
+              moves: currentMoves,
+              botColor,
+            }),
+          });
+          lastStatus = res.status;
+          if (res.ok) {
+            data = await res.json();
+            break;
+          }
+          if (![502, 503, 504].includes(res.status)) break;
+        }
+
+        if (!data?.san) throw new Error(lastStatus ? String(lastStatus) : 'Bot failed');
 
         const c = new Chess(currentFen);
-        c.move(san, { sloppy: true });
-        const nextMoves = [...currentMoves, san];
+        c.move(data.san, { sloppy: true });
+        const nextMoves = [...currentMoves, data.san];
         setMoves(nextMoves);
         setFen(c.fen());
         updateStatus(c);

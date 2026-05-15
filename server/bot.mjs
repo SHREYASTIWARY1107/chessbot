@@ -5,25 +5,11 @@ import {
   botMovePrefix,
   weightedPick,
 } from './book.mjs';
-import { structureSignature, sigKey, fuzzyVote } from './similarity.mjs';
+import { structureSignature, fuzzyVote } from './similarity.mjs';
 import { getEloCandidates } from './stockfish.mjs';
+import { isTacticallyUnsafe, pickSafestQuietMove } from './safety.mjs';
 
-function isBlunder(chess, san) {
-  const trial = new Chess(chess.fen());
-  const mv = trial.move(san, { sloppy: true });
-  if (!mv) return true;
-
-  const opp = new Chess(trial.fen());
-  if (opp.isCheckmate()) return false;
-
-  for (const resp of opp.moves({ verbose: true })) {
-    const after = new Chess(trial.fen());
-    after.move(resp);
-    if (after.isCheckmate()) return true;
-    if (mv.piece !== 'k' && resp.captured === mv.piece && mv.piece === 'q') return true;
-  }
-  return false;
-}
+const MOVE_BUDGET_MS = Number(process.env.BOT_MOVE_BUDGET_MS || 12000);
 
 function styleScore(chess, san, botColor, phasePriors, fuzzyVotes) {
   const sig = structureSignature(chess);
@@ -43,12 +29,12 @@ function styleScore(chess, san, botColor, phasePriors, fuzzyVotes) {
 function pickFromDistribution(dist, chess, botColor, phasePriors, fuzzyVotes) {
   const scored = Object.entries(dist)
     .map(([san]) => ({ san, score: styleScore(chess, san, botColor, phasePriors, fuzzyVotes) }))
-    .filter(({ san }) => !isBlunder(chess, san))
+    .filter(({ san }) => !isTacticallyUnsafe(chess, san))
     .sort((a, b) => b.score - a.score);
 
   if (!scored.length) return null;
 
-  if (scored.length >= 2 && Math.random() < 0.15) return scored[1].san;
+  if (scored.length >= 2 && Math.random() < 0.12) return scored[1].san;
   const top = scored.slice(0, 3);
   const weights = top.map((t) => Math.max(0.1, t.score));
   const total = weights.reduce((a, b) => a + b, 0);
@@ -66,7 +52,7 @@ function toUci(chess, san) {
   return m ? m.from + m.to + (m.promotion || '') : null;
 }
 
-export async function getBotMove({ fen, moves, botColor }) {
+async function chooseMoveCore({ fen, moves, botColor }) {
   const artifacts = loadArtifacts();
   const chess = new Chess(fen);
   const legal = chess.moves();
@@ -75,47 +61,34 @@ export async function getBotMove({ fen, moves, botColor }) {
   const fuzzyVotes = fuzzyVote(chess, artifacts.positionIndex, legalSet);
 
   let san = null;
-  let tier = 'elo-style';
 
   if (artifacts.exactBook[key]) {
-    const pick = weightedPick(
-      Object.fromEntries(
-        Object.entries(artifacts.exactBook[key]).filter(([m]) => legalSet.has(m)),
-      ),
+    const filtered = Object.fromEntries(
+      Object.entries(artifacts.exactBook[key]).filter(([m]) => legalSet.has(m)),
     );
-    if (pick && !isBlunder(chess, pick)) {
-      san = pick;
-      tier = 'book';
-    }
+    const pick = weightedPick(filtered);
+    if (pick && !isTacticallyUnsafe(chess, pick)) san = pick;
   }
 
   if (!san) {
     const prefix = botMovePrefix(moves, botColor);
     if (artifacts.openingTree[prefix]) {
-      const pick = weightedPick(
-        Object.fromEntries(
-          Object.entries(artifacts.openingTree[prefix]).filter(([m]) => legalSet.has(m)),
-        ),
+      const filtered = Object.fromEntries(
+        Object.entries(artifacts.openingTree[prefix]).filter(([m]) => legalSet.has(m)),
       );
-      if (pick && !isBlunder(chess, pick)) {
-        san = pick;
-        tier = 'opening';
-      }
+      const pick = weightedPick(filtered);
+      if (pick && !isTacticallyUnsafe(chess, pick)) san = pick;
     }
   }
 
   if (!san && Object.keys(fuzzyVotes).length) {
-    const pick = pickFromDistribution(
+    san = pickFromDistribution(
       fuzzyVotes,
       chess,
       botColor,
       artifacts.phasePriors,
       fuzzyVotes,
     );
-    if (pick) {
-      san = pick;
-      tier = 'similar';
-    }
   }
 
   if (!san) {
@@ -125,17 +98,13 @@ export async function getBotMove({ fen, moves, botColor }) {
       legal.filter((m) => (priors[m] || 0) > 0).map((m) => [m, priors[m]]),
     );
     if (Object.keys(dist).length) {
-      const pick = pickFromDistribution(
+      san = pickFromDistribution(
         dist,
         chess,
         botColor,
         artifacts.phasePriors,
         fuzzyVotes,
       );
-      if (pick) {
-        san = pick;
-        tier = 'predicted';
-      }
     }
   }
 
@@ -152,28 +121,36 @@ export async function getBotMove({ fen, moves, botColor }) {
       const m = trial.move({ from, to, promotion: promo });
       if (!m) continue;
       const s = m.san;
-      if (!legalSet.has(s) || isBlunder(chess, s)) continue;
+      if (!legalSet.has(s) || isTacticallyUnsafe(chess, s)) continue;
       scored.push({
         san: s,
-        score: styleScore(chess, s, botColor, artifacts.phasePriors, fuzzyVotes) + c.cp / 200,
+        score: styleScore(chess, s, botColor, artifacts.phasePriors, fuzzyVotes) + (c.cp || 0) / 200,
       });
     }
 
     scored.sort((a, b) => b.score - a.score);
-    if (scored.length) {
-      san = scored[0].san;
-      tier = 'elo-style';
-    }
+    if (scored.length) san = scored[0].san;
   }
 
   if (!san) {
-    const safe = legal.filter((m) => !isBlunder(chess, m));
-    san = (safe.length ? safe : legal)[Math.floor(Math.random() * (safe.length || legal.length))];
-    tier = 'fallback';
+    san = pickSafestQuietMove(chess);
   }
 
   const uci = toUci(chess, san);
-  if (process.env.NODE_ENV !== 'production') console.debug('bot tier:', tier, san);
-
   return { san, uci: uci || san };
+}
+
+export async function getBotMove(params) {
+  const budget = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('move_timeout')), MOVE_BUDGET_MS),
+  );
+
+  try {
+    return await Promise.race([chooseMoveCore(params), budget]);
+  } catch {
+    const chess = new Chess(params.fen);
+    const san = pickSafestQuietMove(chess);
+    const uci = toUci(chess, san);
+    return { san, uci: uci || san };
+  }
 }
