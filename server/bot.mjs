@@ -66,7 +66,7 @@ async function chooseMoveCore({ fen, moves, botColor }) {
 
   let san = null;
 
-  /** ~1650: never ignore free/hanging material */
+  /** Profitable captures: only if opponent’s worst legal reply still leaves us up in material (-mate penalty). Falls through otherwise. */
   const take = pickBestWinningCapture(chess, botColor);
   if (take) {
     san = take;

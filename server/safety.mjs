@@ -44,13 +44,45 @@ export function evalCaptureExchange(chess, botColor, verboseMove) {
   return worst - root;
 }
 
+const MATE_US_PENALTY = -800;
+
+/**
+ * Assume we capture: opponent replies with whichever move minimizes our material
+ * perspective (every legal reply, not only recapture on same square — avoids one-move
+ * “free queen” grabs that lose to a fork or skewer next).
+ */
+export function netAfterCaptureWorstOpponentReply(chess, botColor, verboseCapture) {
+  const root = materialEval(chess, botColor);
+  const t = new Chess(chess.fen());
+  const mv = t.move(verboseCapture);
+  if (!mv?.captured) return -999;
+  if (t.isGameOver()) {
+    if (t.isCheckmate()) return 999;
+    return materialEval(t, botColor) - root;
+  }
+
+  let worst = Infinity;
+  const opp = new Chess(t.fen());
+  for (const r of opp.moves({ verbose: true })) {
+    const t2 = new Chess(t.fen());
+    t2.move(r);
+    let ev = materialEval(t2, botColor);
+    if (t2.isCheckmate() && t2.turn() === botColor) ev = MATE_US_PENALTY;
+    worst = Math.min(worst, ev);
+  }
+  if (worst === Infinity) worst = materialEval(t, botColor);
+
+  return worst - root;
+}
+
 export function pickBestWinningCapture(chess, botColor) {
   const scored = [];
   for (const v of chess.moves({ verbose: true })) {
     if (!v.captured) continue;
     if (isTacticallyUnsafe(chess, v.san)) continue;
-    const net = evalCaptureExchange(chess, botColor, v);
-    if (net > 0.01) scored.push({ san: v.san, net, capVal: VALUE[v.captured] ?? 0 });
+    const net = netAfterCaptureWorstOpponentReply(chess, botColor, v);
+    if (net > 0.01)
+      scored.push({ san: v.san, net, capVal: VALUE[v.captured] ?? 0 });
   }
   if (!scored.length) return null;
   scored.sort((a, b) => b.net - a.net || b.capVal - a.capVal);

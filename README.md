@@ -12,7 +12,7 @@ npm start
 
 Open http://localhost:3000
 
-Play strength targets **~1650** Elo (Stockfish limited mode). When the opponent hangs material the bot wins in one exchange (or for free), it **takes it first** before opening book or style. Override with `BOT_ELO` in env.
+Play strength targets **~1650** Elo (Stockfish limited mode). Winning captures are only auto-played when a **quick 2-ply material check** (you capture → they try their toughest reply anywhere) still leaves you ahead — so forks and one-move refutations are skipped in favour of normal book/engine choice.
 
 ## Training data
 
