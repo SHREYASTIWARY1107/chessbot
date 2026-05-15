@@ -7,7 +7,11 @@ import {
 } from './book.mjs';
 import { structureSignature, fuzzyVote } from './similarity.mjs';
 import { getEloCandidates } from './stockfish.mjs';
-import { isTacticallyUnsafe, pickSafestQuietMove } from './safety.mjs';
+import {
+  isTacticallyUnsafe,
+  pickBestWinningCapture,
+  pickSafestQuietMove,
+} from './safety.mjs';
 
 const MOVE_BUDGET_MS = Number(process.env.BOT_MOVE_BUDGET_MS || 12000);
 
@@ -34,7 +38,7 @@ function pickFromDistribution(dist, chess, botColor, phasePriors, fuzzyVotes) {
 
   if (!scored.length) return null;
 
-  if (scored.length >= 2 && Math.random() < 0.12) return scored[1].san;
+  if (scored.length >= 2 && Math.random() < 0.07) return scored[1].san;
   const top = scored.slice(0, 3);
   const weights = top.map((t) => Math.max(0.1, t.score));
   const total = weights.reduce((a, b) => a + b, 0);
@@ -61,6 +65,14 @@ async function chooseMoveCore({ fen, moves, botColor }) {
   const fuzzyVotes = fuzzyVote(chess, artifacts.positionIndex, legalSet);
 
   let san = null;
+
+  /** ~1650: never ignore free/hanging material */
+  const take = pickBestWinningCapture(chess, botColor);
+  if (take) {
+    san = take;
+    const uci = toUci(chess, san);
+    return { san, uci: uci || san };
+  }
 
   if (artifacts.exactBook[key]) {
     const filtered = Object.fromEntries(
@@ -109,8 +121,8 @@ async function chooseMoveCore({ fen, moves, botColor }) {
   }
 
   if (!san) {
-    const targetElo = artifacts.botRating.targetElo || 1380;
-    const candidates = await getEloCandidates(fen, targetElo, 5);
+    const targetElo = artifacts.botRating.targetElo || 1650;
+    const candidates = await getEloCandidates(fen, targetElo, 6);
     const scored = [];
 
     for (const c of candidates) {

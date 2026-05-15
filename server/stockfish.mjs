@@ -6,7 +6,7 @@ let initPromise = null;
 let uciReady = false;
 let chain = Promise.resolve();
 
-const ENGINE_TIMEOUT_MS = Number(process.env.STOCKFISH_MS || 4500);
+const ENGINE_TIMEOUT_MS = Number(process.env.STOCKFISH_MS || 5500);
 
 function normalizeMsg(line) {
   return typeof line === 'string' ? line : line?.data || String(line);
@@ -98,13 +98,13 @@ function runOneAnalysis(fen, targetElo, multipv = 5) {
     };
 
     try {
-      const elo = Math.min(3190, Math.max(1320, targetElo));
+      const elo = Math.min(3190, Math.max(1350, targetElo));
       engine.postMessage('setoption name UCI_LimitStrength value true');
       engine.postMessage(`setoption name UCI_Elo value ${elo}`);
       engine.postMessage(`setoption name MultiPV value ${multipv}`);
       engine.postMessage('isready');
       engine.postMessage(`position fen ${fen}`);
-      engine.postMessage('go depth 9');
+      engine.postMessage('go depth 11');
     } catch (e) {
       console.warn('Stockfish post failed:', e.message);
       finish([]);

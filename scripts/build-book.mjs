@@ -81,13 +81,6 @@ function addWeighted(book, key, move, n = 1) {
   inc(book, key, move, n);
 }
 
-function pickEloFromHeaders(elos) {
-  const valid = elos.filter((e) => e > 0);
-  if (!valid.length) return DEFAULT_TARGET_ELO;
-  valid.sort((a, b) => a - b);
-  return Math.round(valid[Math.floor(valid.length / 2)]);
-}
-
 function loadGames() {
   const files = fs.readdirSync(PGN_DIR).filter((f) => f.endsWith('.pgn'));
   const seen = new Set();
@@ -183,7 +176,7 @@ function main() {
 
   for (const g of games) walkGame(g, artifacts);
 
-  const targetElo = pickEloFromHeaders(games.map((g) => g.botElo));
+  const targetElo = DEFAULT_TARGET_ELO;
 
   const output = {
     exactBook: artifacts.exactBook,
