@@ -1,0 +1,36 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1a1714;
+  --surface: #252019;
+  --surface2: #2f2820;
+  --text: #f4ede4;
+  --muted: #a89a8c;
+  --accent: #c9a227;
+  --accent-dim: #8a7020;
+  --board-light: #e8d4b0;
+  --board-dark: #b58863;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}

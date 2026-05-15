@@ -1,0 +1,20 @@
+[Event "World Chess Gaming"]
+[Site "worldchess.com"]
+[Date "2026.04.11"]
+[Round "1"]
+[White "Bot"]
+[Black "Kadira Ahmed"]
+[Result "1-0"]
+[BlackElo "833"]
+[BlackFideId "None"]
+[BlackPlayerId "1142297"]
+[TimeControl "Blitz 3 min"]
+[Tournament "win all"]
+[UTCDate "2026.04.11"]
+[UTCTime "10:20:17"]
+[WhiteElo "1393"]
+[WhiteFideId "None"]
+[WhitePlayerId "1139527"]
+
+1. d4 { [%clk 00:03:00] } 1... d5 { [%clk 00:03:00] } 2. Nc3
+{ [%clk 00:02:59] } 2... Nf6 { [%clk 00:02:56] } 3. Bf4 { [%clk 00:02:57] } 1-0
