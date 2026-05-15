@@ -66,14 +66,7 @@ async function chooseMoveCore({ fen, moves, botColor }) {
 
   let san = null;
 
-  /** Profitable captures: only if opponent’s worst legal reply still leaves us up in material (-mate penalty). Falls through otherwise. */
-  const take = pickBestWinningCapture(chess, botColor);
-  if (take) {
-    san = take;
-    const uci = toUci(chess, san);
-    return { san, uci: uci || san };
-  }
-
+  /* 1–2: Training data first — exact position book, then opening move sequence */
   if (artifacts.exactBook[key]) {
     const filtered = Object.fromEntries(
       Object.entries(artifacts.exactBook[key]).filter(([m]) => legalSet.has(m)),
@@ -90,6 +83,16 @@ async function chooseMoveCore({ fen, moves, botColor }) {
       );
       const pick = weightedPick(filtered);
       if (pick && !isTacticallyUnsafe(chess, pick)) san = pick;
+    }
+  }
+
+  /* 3: Vetted profitable captures when not in book (2-ply trap check) */
+  if (!san) {
+    const take = pickBestWinningCapture(chess, botColor);
+    if (take) {
+      san = take;
+      const uci = toUci(chess, san);
+      return { san, uci: uci || san };
     }
   }
 

@@ -12,7 +12,9 @@ npm start
 
 Open http://localhost:3000
 
-Play strength targets **~1650** Elo (Stockfish limited mode). Winning captures are only auto-played when a **quick 2-ply material check** (you capture → they try their toughest reply anywhere) still leaves you ahead — so forks and one-move refutations are skipped in favour of normal book/engine choice.
+Play strength targets **~1650** Elo (Stockfish limited mode).
+
+**Move priority:** (1) **Exact positions** from your PGNs (`player-book`), (2) **Opening sequences** (prefix tree of your bot moves), (3) **Vetted captures** only when (1) and (2) have no usable move, then fuzzy / phase / capped Stockfish. So when the game matches your training, the bot prefers your repertoire first; capture heuristics do not skip ahead of that anymore. When captures are considered, they pass a short **2-ply material trap check** before playing.
 
 ## Training data
 
