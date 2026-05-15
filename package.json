@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Play chess against a style-trained bot",
   "scripts": {
-    "build": "node scripts/build-book.mjs && vite build",
+    "build": "node scripts/build-book.mjs && npx vite build",
     "start": "node server/index.mjs",
     "dev": "node scripts/build-book.mjs && concurrently \"node --watch server/index.mjs\" \"vite\"",
     "build:book": "node scripts/build-book.mjs"
@@ -17,12 +17,12 @@
     "react": "^18.3.1",
     "react-chessboard": "^4.7.2",
     "react-dom": "^18.3.1",
-    "stockfish": "^18.0.7"
+    "stockfish": "^18.0.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.3"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.2",
-    "vite": "^6.0.3"
+    "concurrently": "^9.1.2"
   },
   "engines": {
     "node": ">=18"
