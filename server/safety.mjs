@@ -47,6 +47,44 @@ export function evalCaptureExchange(chess, botColor, verboseMove) {
 const MATE_US_PENALTY = -800;
 
 /**
+ * After our move: worst case our material eval over all opponent replies.
+ * (Cheap 1950-lite “assume they punish.”)
+ */
+function worstEvalAfterMove(chess, botColor, san) {
+  const trial = new Chess(chess.fen());
+  const mv = trial.move(san, { sloppy: true });
+  if (!mv) return null;
+  if (trial.isGameOver()) return materialEval(trial, botColor);
+
+  let worst = Infinity;
+  const opp = new Chess(trial.fen());
+  for (const resp of opp.moves({ verbose: true })) {
+    const after = new Chess(trial.fen());
+    after.move(resp);
+    let ev = materialEval(after, botColor);
+    if (after.isCheckmate() && after.turn() === botColor) ev = MATE_US_PENALTY;
+    worst = Math.min(worst, ev);
+  }
+  if (worst === Infinity) worst = materialEval(trial, botColor);
+  return worst;
+}
+
+/**
+ * Reject if any single opponent reply drops our material balance by more than
+ * `maxDrop` (in pawn units). Catches queen-for-pawn yolos where …Qxd5 “only” trades
+ * queens but we grabbed a pawn first — net catastrophe.
+ */
+export function isTacticallyUnsafe(chess, san, maxDrop) {
+  const cap = maxDrop ?? Number(process.env.BOT_TACTICAL_MAX_DROP ?? 3);
+  const botColor = chess.turn();
+  const rootEv = materialEval(chess, botColor);
+  const worstEv = worstEvalAfterMove(chess, botColor, san);
+
+  if (worstEv === null) return true;
+  return worstEv < rootEv - cap;
+}
+
+/**
  * Assume we capture: opponent replies with whichever move minimizes our material
  * perspective (every legal reply, not only recapture on same square — avoids one-move
  * “free queen” grabs that lose to a fork or skewer next).
@@ -87,38 +125,6 @@ export function pickBestWinningCapture(chess, botColor) {
   if (!scored.length) return null;
   scored.sort((a, b) => b.net - a.net || b.capVal - a.capVal);
   return scored[0].san;
-}
-
-/**
- * Stricter than casual play: reject moves where opponent gains > ~0 material
- * on any one-tempo capture (and reject mate-in-1).
- */
-export function isTacticallyUnsafe(chess, san) {
-  const trial = new Chess(chess.fen());
-  const mv = trial.move(san, { sloppy: true });
-  if (!mv) return true;
-
-  if (trial.isCheckmate()) return false;
-
-  const opp = new Chess(trial.fen());
-
-  for (const resp of opp.moves({ verbose: true })) {
-    const after = new Chess(trial.fen());
-    after.move(resp);
-
-    if (after.isCheckmate()) return true;
-
-    if (!resp.captured) continue;
-
-    // King recaptures: piece value model breaks (don't treat K as “free”).
-    if (resp.piece === 'k') continue;
-
-    const captureGain = VALUE[resp.captured] ?? 0;
-    const attackerLoss = VALUE[resp.piece] ?? 0;
-    if (captureGain > attackerLoss + 0.05) return true;
-  }
-
-  return false;
 }
 
 /** Among legal moves, prefer those that minimise worst 1-ply material loss after any capture reply */

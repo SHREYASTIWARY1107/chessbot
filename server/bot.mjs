@@ -56,6 +56,16 @@ function toUci(chess, san) {
   return m ? m.from + m.to + (m.promotion || '') : null;
 }
 
+/** Last line of defense — never emit a move that loses a pile in one ply. */
+function coerceSafeSan(chess, san) {
+  const leg = chess.moves();
+  if (san && leg.includes(san) && !isTacticallyUnsafe(chess, san)) return san;
+  const fb = pickSafestQuietMove(chess);
+  if (fb && !isTacticallyUnsafe(chess, fb)) return fb;
+  for (const m of leg) if (!isTacticallyUnsafe(chess, m)) return m;
+  return san || leg[0];
+}
+
 async function chooseMoveCore({ fen, moves, botColor }) {
   const artifacts = loadArtifacts();
   const chess = new Chess(fen);
@@ -88,12 +98,7 @@ async function chooseMoveCore({ fen, moves, botColor }) {
 
   /* 3: Vetted profitable captures when not in book (2-ply trap check) */
   if (!san) {
-    const take = pickBestWinningCapture(chess, botColor);
-    if (take) {
-      san = take;
-      const uci = toUci(chess, san);
-      return { san, uci: uci || san };
-    }
+    san = pickBestWinningCapture(chess, botColor);
   }
 
   if (!san && Object.keys(fuzzyVotes).length) {
@@ -151,6 +156,7 @@ async function chooseMoveCore({ fen, moves, botColor }) {
     san = pickSafestQuietMove(chess);
   }
 
+  san = coerceSafeSan(chess, san);
   const uci = toUci(chess, san);
   return { san, uci: uci || san };
 }
@@ -164,7 +170,8 @@ export async function getBotMove(params) {
     return await Promise.race([chooseMoveCore(params), budget]);
   } catch {
     const chess = new Chess(params.fen);
-    const san = pickSafestQuietMove(chess);
+    let san = pickSafestQuietMove(chess);
+    san = coerceSafeSan(chess, san);
     const uci = toUci(chess, san);
     return { san, uci: uci || san };
   }

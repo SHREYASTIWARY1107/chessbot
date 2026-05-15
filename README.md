@@ -14,7 +14,7 @@ Open http://localhost:3000
 
 Play strength targets **~1650** Elo (Stockfish limited mode).
 
-**Move priority:** (1) **Exact positions** from your PGNs (`player-book`), (2) **Opening sequences** (prefix tree of your bot moves), (3) **Vetted captures** only when (1) and (2) have no usable move, then fuzzy / phase / capped Stockfish. So when the game matches your training, the bot prefers your repertoire first; capture heuristics do not skip ahead of that anymore. When captures are considered, they pass a short **2-ply material trap check** before playing.
+**Move priority:** (1) Exact book, (2) Opening prefix tree, (3) Vetted captures, then fuzzy / phase / Stockfish. **Tactics:** Each candidate assumes the opponent replies once to **minimize your material eval**; that blocks **Qxd5 …Qxd5**-style queen-for-pawn catastrophes without calling every quiet move “illegal” (default max loss **~3 pawns** per reply, override with `BOT_TACTICAL_MAX_DROP`). A final `coerceSafeSan` still re-checks before sending a move. Tier (3) captures also use a stricter 2-ply trap filter.
 
 ## Training data
 
